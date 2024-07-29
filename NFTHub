@@ -1,0 +1,67 @@
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+
+class NFTHub:
+    def __init__(self):
+        self.api_url = 'https://api.opensea.io/api/v1'
+
+    def get_nft_details(self, contract_address: str, token_id: str) -> dict:
+        url = f"{self.api_url}/assets"
+        params = {
+            'asset_contract_address': contract_address,
+            'token_ids': token_id
+        }
+        response = requests.get(url, params=params)
+        return response.json()
+
+    def get_nft_sales_history(self, contract_address: str, token_id: str) -> pd.DataFrame:
+        url = f"{self.api_url}/assets"
+        params = {
+            'asset_contract_address': contract_address,
+            'token_ids': token_id,
+            'order_direction': 'desc',
+            'offset': '0',
+            'limit': '1'
+        }
+        response = requests.get(url, params=params)
+        asset_data = response.json()
+        if not asset_data['assets']:
+            return pd.DataFrame()
+
+        sales = asset_data['assets'][0].get('sales', [])
+        sales_data = []
+        for sale in sales:
+            sales_data.append({
+                'timestamp': pd.to_datetime(sale['event_timestamp']),
+                'price': float(sale['total_price']) / 1e18  # Convert from wei to ether
+            })
+        return pd.DataFrame(sales_data)
+
+    def plot_nft_sales_trend(self, contract_address: str, token_id: str):
+        df = self.get_nft_sales_history(contract_address, token_id)
+        if df.empty:
+            print("No sales history found.")
+            return
+
+        plt.figure(figsize=(12, 6))
+        plt.plot(df['timestamp'], df['price'], marker='o', linestyle='-')
+        plt.title(f'{token_id} Sales Trend')
+        plt.xlabel('Date')
+        plt.ylabel('Price (ETH)')
+        plt.grid(True)
+        plt.show()
+
+# Example Usage
+if __name__ == "__main__":
+    nft_hub = NFTHub()
+
+    # Fetch and Display NFT Details
+    contract_address = '0xabc...'  # Replace with the NFT contract address
+    token_id = '1'  # Replace with the token ID
+    nft_details = nft_hub.get_nft_details(contract_address, token_id)
+    print(f"NFT Details for Token ID {token_id}:")
+    print(nft_details)
+
+    # Fetch and Display Sales History and Plot Trend
+    nft_hub.plot_nft_sales_trend(contract_address=contract_address, token_id=token_id)
